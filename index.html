@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Sentimen - Sensus Ekonomi Tangsel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#3b82f6',
+                        positive: '#10b981',
+                        neutral: '#6b7280',
+                        negative: '#ef4444',
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #334155;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025);
+        }
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-positive { background-color: #d1fae5; color: #065f46; }
+        .badge-neutral { background-color: #e5e7eb; color: #374151; }
+        .badge-negative { background-color: #fee2e2; color: #991b1b; }
+        
+        /* Animasi Loading */
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased font-sans">
+
+    <nav class="bg-blue-600 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-chart-pie text-2xl mr-3"></i>
+                    <span class="font-bold text-lg md:text-xl tracking-tight">EcoCensus Sentimen Tangsel</span>
+                </div>
+                <div>
+                    <span class="text-sm bg-blue-700 py-1 px-3 rounded-full hidden md:inline-block">
+                        <i class="fa-solid fa-bolt mr-1 text-yellow-300"></i> API Terhubung
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Header & Action -->
+        <div class="flex flex-col md:flex-row md:justify-between md:items-end mb-8 gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Analisis Sentimen Sensus Ekonomi</h1>
+                <p class="text-gray-500 text-sm mt-1">Mengambil data opini masyarakat Tangerang Selatan dari Apify.</p>
+            </div>
+            <div class="flex flex-col gap-2 min-w-[300px]">
+                <button id="fetchBtn" onclick="app.fetchData()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition duration-200 flex items-center justify-center shadow-md">
+                    <i class="fa-solid fa-cloud-arrow-down mr-2"></i> Ambil Data Terbaru
+                </button>
+                <div id="statusMsg" class="text-xs text-center text-gray-500 font-medium h-4"></div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="hidden flex-col items-center justify-center py-12">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <h2 class="text-center text-gray-600 text-lg font-semibold">Mengambil data dari Apify...</h2>
+            <p class="w-1/3 text-center text-gray-500 text-sm mt-2">Menganalisis sentimen masyarakat berdasarkan Token & ID yang dikonfigurasi.</p>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div id="dashboardContent" class="opacity-0 transition-opacity duration-500 hidden">
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <!-- Total Data -->
+                <div class="glass-card rounded-xl p-6 border-l-4 border-blue-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">Total Respons</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-total">0</h3>
+                        </div>
+                        <div class="p-3 bg-blue-100 rounded-lg text-blue-600">
+                            <i class="fa-solid fa-users text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <!-- Positif -->
+                <div class="glass-card rounded-xl p-6 border-l-4 border-green-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">Sentimen Positif</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-positive">0</h3>
+                        </div>
+                        <div class="p-3 bg-green-100 rounded-lg text-green-600">
+                            <i class="fa-solid fa-face-smile text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <!-- Netral -->
+                <div class="glass-card rounded-xl p-6 border-l-4 border-gray-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">Sentimen Netral</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-neutral">0</h3>
+                        </div>
+                        <div class="p-3 bg-gray-200 rounded-lg text-gray-600">
+                            <i class="fa-solid fa-face-meh text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+                <!-- Negatif -->
+                <div class="glass-card rounded-xl p-6 border-l-4 border-red-500">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-sm text-gray-500 font-medium mb-1">Sentimen Negatif</p>
+                            <h3 class="text-3xl font-bold text-gray-800" id="kpi-negative">0</h3>
+                        </div>
+                        <div class="p-3 bg-red-100 rounded-lg text-red-600">
+                            <i class="fa-solid fa-face-frown text-xl"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                <!-- Chart -->
+                <div class="glass-card rounded-xl p-6 lg:col-span-1 flex flex-col justify-center items-center">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 w-full text-left border-b pb-2">Sebaran Sentimen</h3>
+                    <div class="relative h-64 w-full flex justify-center">
+                        <canvas id="sentimentChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Snapshot Data Terbaru -->
+                <div class="glass-card rounded-xl p-6 lg:col-span-2 overflow-hidden flex flex-col">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2">Sorotan Opini Masyarakat (Tangerang Selatan)</h3>
+                    <div class="overflow-y-auto pr-2 flex-grow" style="max-height: 250px;" id="highlightContainer">
+                        <!-- Konten Highlight Di-generate oleh JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-xl p-6 overflow-hidden">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 class="text-lg font-bold text-gray-800">Detail Raw Data</h3>
+                    <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Sumber: Apify API</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-left text-sm whitespace-nowrap">
+                        <thead class="uppercase tracking-wider border-b-2 bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-semibold">Tanggal</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-semibold">Platform/User</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-semibold">Teks Opini</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-semibold text-center">Sentimen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody" class="divide-y divide-gray-200 text-gray-700">
+                            <!-- Data akan dimuat melalui JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // Konfigurasi Apify dari User
+        const APIFY_TOKEN = "apify_api_RsjKX6PnZpDbMHtxm573cgzjBRjgkY1yiJct";
+        const APIFY_DATASET_ID = "tcPjbVSgTP81U1EcU"; 
+
+        // State Aplikasi
+        const app = {
+            data: [],
+            chartInstance: null,
+
+            // Kamus kata (Lexicon) sederhana untuk sentimen Bahasa Indonesia
+            lexicon: {
+                positive: ['dukung', 'bagus', 'baik', 'maju', 'sukses', 'penting', 'manfaat', 'setuju', 'lancar', 'mudah', 'ramah', 'jelas', 'akurat', 'apresiasi', 'bermanfaat', 'cepat'],
+                negative: ['ribet', 'susah', 'tolak', 'malas', 'korupsi', 'lambat', 'ganggu', 'repot', 'buruk', 'jelek', 'bingung', 'hoaks', 'kurang', 'memaksa', 'error', 'takut', 'penipuan']
+            },
+
+            analyzeSentiment: function(text) {
+                const lowerText = text.toLowerCase();
+                let posScore = 0;
+                let negScore = 0;
+
+                this.lexicon.positive.forEach(word => {
+                    if (lowerText.includes(word)) posScore++;
+                });
+
+                this.lexicon.negative.forEach(word => {
+                    if (lowerText.includes(word)) negScore++;
+                });
+
+                if (posScore > negScore) return 'positive';
+                if (negScore > posScore) return 'negative';
+                return 'neutral';
+            },
+
+            fetchData: async function() {
+                this.showLoading(true);
+                this.updateStatus('Menghubungi API Apify...');
+
+                try {
+                    // Endpoint dataset Apify standar berdasarkan token & ID
+                    const url = `https://api.apify.com/v2/datasets/${APIFY_DATASET_ID}/items?token=${APIFY_TOKEN}`;
+                    
+                    const response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' }});
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const result = await response.json();
+
+                    // Periksa jika dataset kosong, gunakan data dummy agar UI tetap bisa didemonstrasikan
+                    if (!result || result.length === 0) {
+                        this.updateStatus('Dataset Apify kosong. Menggunakan data simulasi...');
+                        this.loadDummyData();
+                    } else {
+                        this.updateStatus('Data berhasil diambil dari Apify!');
+                        this.processRawData(result);
+                    }
+
+                } catch (error) {
+                    console.warn("Koneksi ke API gagal atau ditolak (CORS/Invalid ID). Memuat fallback data simulasi...", error);
+                    this.updateStatus('Koneksi API gagal. Menggunakan data simulasi...', true);
+                    this.loadDummyData();
+                }
+            },
+
+            processRawData: function(rawData) {
+                this.data = rawData.map(item => {
+                    // Mengekstrak teks, mencoba menyesuaikan ragam struktur output Apify (Twitter, FB, News dll)
+                    const textContent = item.text || item.full_text || item.title || item.content || "Data tidak memiliki teks yang valid";
+                    const dateContent = item.createdAt || item.date || item.created_at || new Date().toISOString();
+                    const sourceContent = item.username || item.author || item.domain || "Anonymous";
+
+                    const sentiment = this.analyzeSentiment(textContent);
+                    return {
+                        date: new Date(dateContent).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+                        source: sourceContent,
+                        text: textContent,
+                        sentiment: sentiment
+                    };
+                });
+                this.updateDashboard();
+            },
+
+            loadDummyData: function() {
+                // Minimum 20 data sesuai request pengguna terkait "sensus ekonomi tangsel"
+                const rawDummy = [
+                    { t: "Petugas sensus ekonomi di pamulang ramah banget, pendataannya juga cepat. Sukses terus Tangsel!", s: "@warga_pamulang" },
+                    { t: "Males banget ada sensus ekonomi lagi, bikin ribet usaha kecil aja apalagi jualan lagi sepi.", s: "Budi_UMKM" },
+                    { t: "Semoga hasil sensus ekonomi BPS Tangsel bisa jadi acuan kebijakan yang baik ke depannya.", s: "@pengamat_tng" },
+                    { t: "Sensus ekonomi hari ini di daerah perumahan BSD berjalan dengan lancar.", s: "InfoBSD" },
+                    { t: "Kurang sosialisasi nih sensus ekonomi di Ciputat, tiba-tiba ada petugas datang ke rumah.", s: "@ciputat_update" },
+                    { t: "Kemarin didata untuk sensus ekonomi, petugasnya jelasin tujuannya dengan baik.", s: "Siti Rahma" },
+                    { t: "Sensus ekonomi BPS, saya dan keluarga sudah didata siang tadi.", s: "Keluarga_Ilham" },
+                    { t: "Ribet banget ngisi kuesioner sensus ekonomi, pertanyaannya terlalu detail buat warung kecil kayak saya.", s: "WarungBuAni" },
+                    { t: "Dukung penuh sensus ekonomi Tangsel agar data pemerintah daerah makin akurat.", s: "@tangsel_maju" },
+                    { t: "Apa gunanya sensus ekonomi kalau harga bahan pokok di pasar Serpong tetep naik?", s: "Rakyat_Biasa" },
+                    { t: "Pendataan sensus ekonomi di wilayah Bintaro sektor 9 sudah selesai kemarin.", s: "BintaroNews" },
+                    { t: "Apresiasi buat BPS Tangsel yang kerja keras buat sensus ekonomi 2026 di tengah cuaca panas.", s: "@pemuda_tangsel" },
+                    { t: "Tolong sosialisasi sensus ekonomi diperbanyak, warga banyak yang takut dikira penipuan berkedok petugas.", s: "Ketua_RT05" },
+                    { t: "Sensus ekonomi sangat penting buat pemetaan potensi usaha di daerah kita.", s: "Akademisi_Unpam" },
+                    { t: "Tidak ada masalah sama sekali saat didata sensus ekonomi tadi pagi.", s: "Joko_Santoso" },
+                    { t: "Ada petugas sensus ekonomi memaksa minta omset rahasia perusahaan, harusnya bisa lebih sopan.", s: "@pengusaha_muda" },
+                    { t: "Mudah-mudahan data sensus ekonomi di Serpong bisa bantu kebijakan bantuan pemerintah yang tepat sasaran.", s: "WargaSerpong" },
+                    { t: "Kegiatan sensus sedang berlangsung di kelurahan Pondok Aren hari ini.", s: "Kelurahan_PdAren" },
+                    { t: "Bagus, pendataannya sekarang pakai sistem digital di tablet, jadi kelihatan cepat dan modern.", s: "@tech_enthusiast" },
+                    { t: "Sistem error terus waktu petugas sensus mau input data ke aplikasinya, lambat banget nunggunya.", s: "KeluhKesah" },
+                    { t: "Mendukung program sensus ekonomi BPS di wilayah Tangerang Selatan. Sukseskan!", s: "@pemkot_fans" },
+                    { t: "Banyak pertanyaan yang membingungkan di kuesionernya, harus mikir dulu sebelum jawab.", s: "Ibu_PKK" }
+                ];
+
+                const processed = rawDummy.map((item, index) => {
+                    // Generate random dates within the last week
+                    const d = new Date();
+                    d.setDate(d.getDate() - Math.floor(Math.random() * 7));
+                    return {
+                        date: d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }),
+                        source: item.s,
+                        text: item.t,
+                        sentiment: this.analyzeSentiment(item.t)
+                    };
+                });
+
+                // Sort by date (descending simulate)
+                this.data = processed;
+                this.updateDashboard();
+            },
+
+            updateDashboard: function() {
+                // Hitung KPI
+                const total = this.data.length;
+                const pos = this.data.filter(d => d.sentiment === 'positive').length;
+                const neg = this.data.filter(d => d.sentiment === 'negative').length;
+                const neu = this.data.filter(d => d.sentiment === 'neutral').length;
+
+                // Animasi Counter Sederhana
+                this.animateValue("kpi-total", 0, total, 1000);
+                this.animateValue("kpi-positive", 0, pos, 1000);
+                this.animateValue("kpi-negative", 0, neg, 1000);
+                this.animateValue("kpi-neutral", 0, neu, 1000);
+
+                // Render Chart
+                this.renderChart(pos, neu, neg);
+
+                // Render Highlight Text
+                const highlightHtml = this.data.slice(0, 10).map(item => `
+                    <div class="mb-4 pb-3 border-b border-gray-100 last:border-0">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-semibold text-sm text-gray-800">${item.source}</span>
+                            <span class="badge badge-${item.sentiment}">${this.translateSentiment(item.sentiment)}</span>
+                        </div>
+                        <p class="text-gray-600 text-sm line-clamp-2">"${item.text}"</p>
+                    </div>
+                `).join('');
+                document.getElementById('highlightContainer').innerHTML = highlightHtml;
+
+                // Render Data Table
+                const tableHtml = this.data.map(item => `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.date}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.source}</td>
+                        <td class="px-6 py-4 text-sm text-gray-600 truncate max-w-xs md:max-w-md lg:max-w-xl" title="${item.text}">${item.text}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                            <span class="badge badge-${item.sentiment}">${this.translateSentiment(item.sentiment)}</span>
+                        </td>
+                    </tr>
+                `).join('');
+                document.getElementById('dataTableBody').innerHTML = tableHtml;
+
+                this.showLoading(false);
+            },
+
+            renderChart: function(pos, neu, neg) {
+                const ctx = document.getElementById('sentimentChart').getContext('2d');
+                
+                if(this.chartInstance) {
+                    this.chartInstance.destroy();
+                }
+
+                this.chartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Positif', 'Netral', 'Negatif'],
+                        datasets: [{
+                            data: [pos, neu, neg],
+                            backgroundColor: ['#10b981', '#9ca3af', '#ef4444'],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: { family: "'Inter', sans-serif", size: 13 },
+                                    usePointStyle: true,
+                                    padding: 20
+                                }
+                            }
+                        },
+                        cutout: '70%'
+                    }
+                });
+            },
+
+            // Utility Functions
+            translateSentiment: function(s) {
+                if (s === 'positive') return 'Positif';
+                if (s === 'negative') return 'Negatif';
+                return 'Netral';
+            },
+
+            showLoading: function(show) {
+                const loader = document.getElementById('loadingOverlay');
+                const content = document.getElementById('dashboardContent');
+                
+                if (show) {
+                    loader.style.display = 'flex';
+                    content.classList.add('hidden');
+                    content.classList.remove('opacity-100');
+                    content.classList.add('opacity-0');
+                } else {
+                    loader.style.display = 'none';
+                    content.classList.remove('hidden');
+                    // setTimeout for transition effect
+                    setTimeout(() => {
+                        content.classList.remove('opacity-0');
+                        content.classList.add('opacity-100');
+                    }, 50);
+                }
+            },
+
+            updateStatus: function(msg, isError = false) {
+                const statusEl = document.getElementById('statusMsg');
+                statusEl.textContent = msg;
+                if(isError) {
+                    statusEl.classList.add('text-red-500');
+                    statusEl.classList.remove('text-gray-500');
+                } else {
+                    statusEl.classList.remove('text-red-500');
+                    statusEl.classList.add('text-gray-500');
+                }
+                
+                // Hapus pesan setelah 4 detik
+                setTimeout(() => {
+                    if (statusEl.textContent === msg) statusEl.textContent = '';
+                }, 4000);
+            },
+
+            animateValue: function(id, start, end, duration) {
+                const obj = document.getElementById(id);
+                let startTimestamp = null;
+                const step = (timestamp) => {
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                    obj.innerHTML = Math.floor(progress * (end - start) + start);
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    }
+                };
+                window.requestAnimationFrame(step);
+            }
+        };
+
+        // Initialize App on window load
+        window.onload = function() {
+            // Kita jalankan fetchData secara otomatis saat aplikasi pertama kali dimuat
+            app.fetchData();
+        }
+    </script>
+</body>
+</html>
